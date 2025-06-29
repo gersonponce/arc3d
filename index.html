@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor 3D Básico con Three.js</title>
+    <!-- Carga de Tailwind CSS para un diseño rápido y moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilos personalizados para el canvas y la interfaz */
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif; /* Usando una fuente limpia */
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #ui-panel {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 1rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            max-width: 300px;
+        }
+        .control-button {
+            transition: all 0.2s ease-in-out;
+        }
+        .control-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .control-button.active {
+            background-color: #3b82f6; /* Azul para el botón activo */
+            color: white;
+        }
+        .control-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #info-panel {
+            position: absolute;
+            bottom: 6rem; /* Ajustado para no superponerse con la barra de comandos */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-800">
+
+    <!-- Contenedor para el lienzo de Three.js -->
+    <div id="canvas-container"></div>
+
+    <!-- Panel de la interfaz de usuario (UI) -->
+    <div id="ui-panel" class="space-y-4">
+        <div>
+            <h2 class="text-xl font-bold mb-2 text-gray-800">Historial</h2>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-undo" class="control-button bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg" disabled>Deshacer</button>
+                <button id="btn-redo" class="control-button bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg" disabled>Rehacer</button>
+            </div>
+        </div>
+
+        <div>
+            <h2 class="text-xl font-bold mb-2 text-gray-800">Añadir Sólido</h2>
+            <div class="grid grid-cols-3 gap-2">
+                <button id="add-cube" class="control-button bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg">Cubo</button>
+                <button id="add-sphere" class="control-button bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg">Esfera</button>
+                <button id="add-cylinder" class="control-button bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg">Cilindro</button>
+            </div>
+        </div>
+
+        <div>
+            <h2 class="text-xl font-bold mb-2 text-gray-800">Herramientas</h2>
+            <div class="grid grid-cols-3 gap-2">
+                <button id="btn-translate" class="control-button bg-gray-200 text-gray-700 font-semibold py-2 px-2 rounded-lg text-sm active">Mover</button>
+                <button id="btn-rotate" class="control-button bg-gray-200 text-gray-700 font-semibold py-2 px-2 rounded-lg text-sm">Rotar</button>
+                <button id="btn-scale" class="control-button bg-gray-200 text-gray-700 font-semibold py-2 px-2 rounded-lg text-sm">Escalar</button>
+            </div>
+        </div>
+
+        <div>
+            <h2 class="text-xl font-bold mb-2 text-gray-800">Propiedades</h2>
+             <div class="flex items-center space-x-2">
+                <label for="color-picker" class="font-semibold text-gray-700">Color:</label>
+                <input type="color" id="color-picker" value="#ffffff" class="w-16 h-8 p-1 border-2 border-gray-300 rounded-md cursor-pointer">
+            </div>
+        </div>
+        
+        <hr/>
+
+        <div>
+            <button id="delete-object" class="w-full control-button bg-red-500 text-white font-bold py-2 px-4 rounded-lg">Eliminar Objeto</button>
+        </div>
+    </div>
+
+    <!-- Barra de comandos tipo AutoCAD -->
+    <div id="command-bar" class="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-3 border-t border-gray-700">
+        <div class="flex items-center space-x-3">
+            <span id="command-prompt" class="text-green-400 font-mono text-sm">Comando:</span>
+            <input type="text" id="command-input" placeholder="Escriba un comando (ej: circulo, cubo, cilindro) - F2: enfocar, Esc: cancelar" 
+                   class="flex-1 bg-gray-800 text-white px-3 py-1 rounded border border-gray-600 focus:border-blue-500 focus:outline-none font-mono text-sm">
+            <button id="command-execute" class="bg-blue-600 hover:bg-blue-700 px-4 py-1 rounded text-sm">Ejecutar</button>
+            <button id="command-clear" class="bg-gray-600 hover:bg-gray-700 px-4 py-1 rounded text-sm">Limpiar</button>
+        </div>
+        <div id="command-history" class="mt-2 text-gray-400 text-xs font-mono max-h-20 overflow-y-auto"></div>
+    </div>
+
+    <!-- Panel de información con instrucciones -->
+    <div id="info-panel">
+        Clic izquierdo: seleccionar | Clic derecho + arrastrar: rotar cámara | Rueda del ratón: zoom | Comandos: circulo, cubo, cilindro
+    </div>
+
+    <!-- Carga de Three.js y sus controles -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+
+    <!-- Carga del archivo JavaScript principal -->
+    <script src="editor3d.js"></script>
+
+</body>
+</html>
